@@ -4,6 +4,8 @@ import '../services/api_service.dart';
 import '../models/market_overview.dart';
 
 class MarketOverviewScreen extends StatefulWidget {
+  const MarketOverviewScreen({Key? key}) : super(key: key);
+
   @override
   _MarketOverviewScreenState createState() => _MarketOverviewScreenState();
 }
@@ -20,19 +22,25 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Market Overview'),
+        title: const Text('Market Overview'),
         centerTitle: true,
+        backgroundColor: Colors.indigo,
       ),
       body: FutureBuilder<MarketOverview>(
         future: _marketOverview,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           } else if (snapshot.hasData) {
             final marketData = snapshot.data!;
+            final double totalMarketCap = double.tryParse(marketData.totalMarketCap.toString()) ?? 0.0;
+            final double top10MarketCap = double.tryParse(marketData.top10MarketCap.toString()) ?? 0.0;
+            final double percentageTop10 = totalMarketCap > 0 ? (top10MarketCap / totalMarketCap) : 0.0;
+
             return Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -40,42 +48,106 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
                 children: [
                   Text(
                     'As on: ${marketData.asOnDate}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w600,
+                      color: Colors.indigo,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 20),
+
+                  // Horizontal Circles
+                  Card(
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            CircularDataWidget(
+                              title: 'Total Companies',
+                              value: marketData.totalCompanies.toString(),
+                              percentage: 1.0,
+                              color: Colors.blueAccent,
+                            ),
+                            CircularDataWidget(
+                              title: 'Total Market Cap',
+                              value: '₹${marketData.totalMarketCap} Cr',
+                              percentage: 1.0,
+                              color: Colors.green,
+                            ),
+                            CircularDataWidget(
+                              title: 'Top 10 Market Cap',
+                              value: '₹${marketData.top10MarketCap} Cr',
+                              percentage: percentageTop10,
+                              color: Colors.orange,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Top 10 Companies Table
                   Expanded(
-                    child: ListView(
-                      children: [
-                        AnimatedDataCard(
-                          title: 'Total Companies',
-                          value: marketData.totalCompanies,
-                          percentage: 1.0, // Static as it's not percentage-based
-                          color: Colors.blue,
+                    child: Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Top 10 Companies',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                child: DataTable(
+                                  columns: const [
+                                    DataColumn(label: Text('Rank')),
+                                    DataColumn(label: Text('Name')),
+                                    DataColumn(label: Text('Market Cap')),
+                                  ],
+                                  rows: List<DataRow>.generate(
+                                    marketData.top10Companies.length,
+                                        (index) {
+                                      final company = marketData.top10Companies[index];
+                                      return DataRow(cells: [
+                                        DataCell(Text((index + 1).toString())), // Rank starts from 1
+                                        DataCell(Text(company.symbol ?? 'Unknown')),
+                                        DataCell(Text('₹${company.marketCap}')),
+                                      ]);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        AnimatedDataCard(
-                          title: 'Total Market Cap',
-                          value: '₹${marketData.totalMarketCap} Cr',
-                          percentage: 0.75, // Example: 75% filled
-                          color: Colors.green,
-                        ),
-                        AnimatedDataCard(
-                          title: 'Top 10 Market Cap',
-                          value: '₹${marketData.top10MarketCap} Cr',
-                          percentage: 0.55, // Example: 55% filled
-                          color: Colors.orange,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
               ),
             );
           } else {
-            return Center(child: Text('No data available'));
+            return const Center(child: Text('No data available'));
           }
         },
       ),
@@ -83,13 +155,13 @@ class _MarketOverviewScreenState extends State<MarketOverviewScreen> {
   }
 }
 
-class AnimatedDataCard extends StatelessWidget {
+class CircularDataWidget extends StatelessWidget {
   final String title;
   final String value;
   final double percentage;
   final Color color;
 
-  const AnimatedDataCard({
+  const CircularDataWidget({
     required this.title,
     required this.value,
     required this.percentage,
@@ -98,58 +170,43 @@ class AnimatedDataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      margin: EdgeInsets.symmetric(vertical: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            CircularPercentIndicator(
-              radius: 60.0,
-              lineWidth: 8.0,
-              percent: percentage,
-              center: AnimatedContainer(
-                duration: Duration(seconds: 1),
-                child: Text(
-                  '${(percentage * 100).toInt()}%',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: color,
-                  ),
-                ),
-              ),
-              progressColor: color,
-              backgroundColor: color.withOpacity(0.2),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Column(
+        children: [
+          CircularPercentIndicator(
+            radius: 80.0,
+            lineWidth: 8.0,
+            percent: percentage.clamp(0.0, 1.0),
+            center: Text(
+              '${(percentage * 100).toStringAsFixed(1)}%',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.black,
               ),
             ),
-          ],
-        ),
+            backgroundColor: Colors.grey[300]!,
+            progressColor: color,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+            ),
+          ),
+        ],
       ),
     );
   }
